@@ -7,6 +7,8 @@ type ChatMessage = {
   text: string;
 };
 
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+
 export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
   const [isUploaded, setIsUploaded] = useState(false);
@@ -25,7 +27,7 @@ export default function HomePage() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch(`${process.env.BASE_URL}/upload`, {
+    const res = await fetch(`${BASE_URL}/upload`, {
       method: "POST",
       body: formData,
     });
@@ -47,7 +49,7 @@ export default function HomePage() {
     setChat((prev) => [...prev, { role: "user", text: question }]);
     const q = question;
     setQuestion("");
-    const res = await fetch(`${process.env.BASE_URL}/chat2`, {
+    const res = await fetch(`${BASE_URL}/chat2`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: q, userId: "test" }),
