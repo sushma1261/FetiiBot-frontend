@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { authFetch } from "../lib/api";
+import { useAuth } from "../utils/AuthContext";
 
 type ChatMessage = {
   role: "user" | "bot";
@@ -15,6 +17,7 @@ export default function HomePage() {
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,16 +30,16 @@ export default function HomePage() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch(`${BASE_URL}/upload`, {
+    const res = await authFetch(`${BASE_URL}/upload`, {
       method: "POST",
       body: formData,
     });
 
     if (res.ok) {
       setIsUploaded(true);
-      alert("Upload successful ✅ Now you can start chatting!");
+      alert("Upload successful, Now you can start chatting!");
     } else {
-      alert("Upload failed ❌");
+      alert("Upload failed");
     }
   };
 
@@ -49,10 +52,10 @@ export default function HomePage() {
     setChat((prev) => [...prev, { role: "user", text: question }]);
     const q = question;
     setQuestion("");
-    const res = await fetch(`${BASE_URL}/chat2`, {
+    const res = await authFetch(`${BASE_URL}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: q, userId: "test" }),
+      body: JSON.stringify({ question: q, userId: user?.uid }),
     });
 
     const data = await res.json();

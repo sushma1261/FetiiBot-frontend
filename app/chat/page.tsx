@@ -1,125 +1,96 @@
 "use client";
 
-import axios from "axios";
 import { useState } from "react";
+import { authFetch } from "../lib/api";
+import { useAuth } from "../utils/AuthContext";
 
-type Snippet = { id: string; text: string; score?: number; metadata?: unknown };
-type Msg = { role: "user" | "assistant"; text: string; snippets?: Snippet[] };
+type ChatMessage = {
+  role: "user" | "bot";
+  text: string;
+};
 
-export default function Home() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
-  const uploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return;
-    const form = new FormData();
-    form.append("file", e.target.files[0]);
-    const resp = await axios.post("http://localhost:8080/upload", form, {
-      headers: { "Content-Type": "multipart/form-data" },
+export default function HomePage() {
+  const [question, setQuestion] = useState("");
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+
+  // Ask question
+  const handleAsk = async () => {
+    if (!question.trim()) return;
+    setLoading(true);
+
+    // Append user question
+    setChat((prev) => [...prev, { role: "user", text: question }]);
+    const q = question;
+    setQuestion("");
+
+    const res = await authFetch(`${BASE_URL}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q, userId: user?.uid }),
     });
-    setSessionId(resp.data.sessionId);
-    alert("File uploaded and indexed!");
-  };
 
-  const sendMessage = async () => {
-    if (!input.trim() || !sessionId) return;
-    const userMsg: Msg = { role: "user", text: input };
-    setMessages((m) => [...m, userMsg]);
-    setInput("");
+    const data = await res.json();
 
-    const resp = await axios.post("http://localhost:8080/chat", {
-      sessionId,
-      message: input,
-    });
+    setChat((prev) => [
+      ...prev,
+      { role: "bot", text: data.answer || "⚠️ No answer returned" },
+    ]);
 
-    const ans = resp.data.answer ?? "[no answer]";
-    const snippets = resp.data.snippets ?? [];
-    setMessages((m) => [...m, { role: "assistant", text: ans, snippets }]);
+    setLoading(false);
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Fetii AI Chatbot</h1>
+    <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+      <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-2xl flex flex-col">
+        <h1 className="text-xl font-bold mb-4">
+          Chat about the trip with Fetii Bot
+        </h1>
 
-      {!sessionId && <input type="file" onChange={uploadFile} />}
-
-      {sessionId && (
-        <>
-          <div
-            style={{
-              border: "1px solid #ccc",
-              padding: 10,
-              height: 400,
-              overflowY: "auto",
-              marginBottom: 10,
-            }}
-          >
-            {messages.map((m, i) => (
-              <div key={i} style={{ margin: "8px 0" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent:
-                      m.role === "user" ? "flex-end" : "flex-start",
-                  }}
+        {chat.length > 0 && (
+          <div className="flex-1 overflow-y-auto border p-4 rounded-lg mb-4 h-96 bg-gray-50">
+            {chat.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`mb-3 ${
+                  msg.role === "user" ? "text-right" : "text-left"
+                }`}
+              >
+                <span
+                  className={`inline-block px-3 py-2 rounded-lg ${
+                    msg.role === "user"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-black"
+                  }`}
                 >
-                  <div
-                    style={{
-                      background: m.role === "user" ? "#0070f3" : "#f1f1f1",
-                      color: m.role === "user" ? "#fff" : "#000",
-                      padding: "8px 12px",
-                      borderRadius: 12,
-                      maxWidth: "80%",
-                    }}
-                  >
-                    {m.text}
-                  </div>
-                </div>
-
-                {m.role === "assistant" &&
-                  m.snippets &&
-                  m.snippets.length > 0 && (
-                    <div
-                      style={{
-                        marginTop: 4,
-                        marginLeft: "1rem",
-                        fontSize: "0.85rem",
-                        color: "#555",
-                      }}
-                    >
-                      <strong>Context used:</strong>
-                      <ul style={{ paddingLeft: "1.2rem" }}>
-                        {m.snippets.map((s) => (
-                          <li key={s.id}>
-                            <code>{s.text.slice(0, 120)}...</code>
-                            {s.score && (
-                              <span style={{ color: "#999" }}>
-                                {" "}
-                                ({s.score.toFixed(2)})
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {msg.text}
+                </span>
               </div>
             ))}
+            {loading && <p className="text-gray-500">Thinking...</p>}
           </div>
+        )}
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              style={{ flex: 1 }}
-              placeholder="Ask a question..."
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            />
-            <button onClick={sendMessage}>Send</button>
-          </div>
-        </>
-      )}
-    </div>
+        <div className="flex gap-2">
+          <input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Ask something..."
+            className="flex-1 border rounded-lg px-3 py-2"
+            onKeyDown={(e) => e.key === "Enter" && handleAsk()}
+          />
+          <button
+            onClick={handleAsk}
+            disabled={loading}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
